@@ -22,8 +22,8 @@ module.exports = async function handler(req, res) {
       format: 'json',
       access_token: token,
       imei,
-      camera: '3',       // 3 = both front & inward
-      media_type: '3',   // 3 = both photo & video
+      camera: '3',
+      media_type: '3',
       page_no,
       page_size
     };

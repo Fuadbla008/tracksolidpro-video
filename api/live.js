@@ -1,7 +1,12 @@
 const getToken = require('./token.js');
 const BASE_URL = process.env.BASE_URL;
 
-function getUTCTimestamp() { /* ওপরের মতো */ }
+function getUTCTimestamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ` +
+         `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
 
 module.exports = async function handler(req, res) {
   const { imei } = req.query;
@@ -17,7 +22,7 @@ module.exports = async function handler(req, res) {
       format: 'json',
       access_token: token,
       imei,
-      type: '1',    // real-time video
+      type: '1',
       voice: '1'
     };
     const body = Object.entries(params).map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');

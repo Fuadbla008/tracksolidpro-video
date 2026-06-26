@@ -2,6 +2,13 @@ const getToken = require('./token.js');
 const BASE_URL = process.env.BASE_URL;
 const USER_ID = process.env.USER_ID;
 
+function getUTCTimestamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ` +
+         `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+
 module.exports = async function handler(req, res) {
   try {
     const token = await getToken();

@@ -2,9 +2,8 @@ const BASE_URL = process.env.BASE_URL;
 const APP_KEY = process.env.APP_KEY;
 const USER_ID = process.env.USER_ID;
 const USER_PWD_MD5 = process.env.USER_PWD_MD5;
-const kv = require('@vercel/kv');
+const { kv } = require('@vercel/kv');
 
-// ইউটিসি টাইমস্ট্যাম্প জেনারেটর (yyyy-MM-dd HH:mm:ss)
 function getUTCTimestamp() {
   const d = new Date();
   const pad = n => String(n).padStart(2, '0');
@@ -18,7 +17,7 @@ async function fetchNewToken() {
     timestamp: getUTCTimestamp(),
     app_key: APP_KEY,
     sign_method: 'md5',
-    v: '0.9',               // no signature
+    v: '0.9',
     format: 'json',
     user_id: USER_ID,
     user_pwd_md5: USER_PWD_MD5,
@@ -43,7 +42,6 @@ module.exports = async function getToken() {
   if (token) return token;
 
   token = await fetchNewToken();
-  // expires_in 7200 সেকেন্ড, তবে আমরা ১ ঘণ্টা পর নতুন টোকেন নেব (নিরাপদ)
-  await kv.set(cacheKey, token, { ex: 3600 }); // 1 hour expiry in KV
+  await kv.set(cacheKey, token, { ex: 3600 }); // 1 hour cache
   return token;
 };
