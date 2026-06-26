@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Car Camera Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-4">
+  <div class="max-w-6xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6 text-center">🚗 Vehicle Media Viewer</h1>
+
+    <!-- ডিভাইস সিলেক্ট -->
+    <div class="flex flex-col sm:flex-row gap-4 items-center justify-center mb-6">
+      <select id="imeiSelect" class="p-3 bg-gray-700 border border-gray-600 rounded w-72">
+        <option value="">Select a vehicle</option>
+        <option value="862798051889380">DM_MA_11-7462</option>
+        <option value="862798051887657">DM_MA_11-7522</option>
+        <option value="">Select a vehicle</option>
+        <option value="">Select a vehicle</option>
+        
+      </select>
+      <button onclick="loadMedia()" class="px-6 py-3 bg-blue-600 rounded hover:bg-blue-700">Load Media</button>
+      <button onclick="openLive()" class="px-6 py-3 bg-green-600 rounded hover:bg-green-700">🔴 Live Stream</button>
+    </div>
+
+    <!-- মিডিয়া কন্টেইনার -->
+    <div id="mediaContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+
+  <script>
+    // পেজ লোড হলে ডিভাইস লিস্ট আনব
+    async function loadDevices() {
+      try {
+        const res = await fetch('/api/devices');
+        const data = await res.json();
+        if (data.code === 0) {
+          const select = document.getElementById('imeiSelect');
+          data.result.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.imei;
+            opt.textContent = `${d.imei} - ${d.deviceName || 'Unnamed'}`;
+            select.appendChild(opt);
+          });
+        }
+      } catch(e) { console.error(e); }
+    }
+    loadDevices();
+
+    async function loadMedia() {
+      const imei = document.getElementById('imeiSelect').value;
+      if (!imei) return alert('Please select a vehicle');
+      const res = await fetch(`/api/media?imei=${imei}`);
+      const data = await res.json();
+      const container = document.getElementById('mediaContainer');
+      container.innerHTML = '';
+      if (data.code !== 0) {
+        container.innerHTML = `<p class="text-red-400 text-center col-span-3">Error: ${data.message}</p>`;
+        return;
+      }
+      if (!data.result || data.result.length === 0) {
+        container.innerHTML = `<p class="text-yellow-400 text-center col-span-3">No media found.</p>`;
+        return;
+      }
+      data.result.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'bg-gray-800 rounded-xl overflow-hidden shadow-lg';
+        let mediaEl;
+        if (item.media_type == 2) {
+          // ভিডিও
+          mediaEl = `<video controls class="w-full h-48 object-cover"><source src="${item.file_URL}" type="${item.mime_type}"></video>`;
+        } else {
+          // ছবি
+          mediaEl = `<img src="${item.thumb_URL || item.file_URL}" class="w-full h-48 object-cover" />`;
+        }
+        const date = new Date(item.create_time).toLocaleString();
+        const camera = item.camera === '0' ? 'Front' : item.camera === '1' ? 'Inward' : 'Unknown';
+        card.innerHTML = `
+          ${mediaEl}
+          <div class="p-3">
+            <p class="text-sm">${date}</p>
+            <p class="text-xs text-gray-400">Camera: ${camera} | Size: ${(item.file_size/1024).toFixed(1)} KB</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function openLive() {
+      const imei = document.getElementById('imeiSelect').value;
+      if (!imei) return alert('Please select a vehicle');
+      const res = await fetch(`/api/live?imei=${imei}`);
+      const data = await res.json();
+      if (data.code !== 0) return alert('Error: ' + data.message);
+      if (data.result && data.result.UrlCamera) {
+        window.open(data.result.UrlCamera, '_blank');
+      } else {
+        alert('Live streaming not available for this device.');
+      }
+    }
+  </script>
+</body>
+</html>
