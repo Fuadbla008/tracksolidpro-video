@@ -1,8 +1,11 @@
+const { kv } = require('@vercel/kv');
+
 const BASE_URL = process.env.BASE_URL;
 const APP_KEY = process.env.APP_KEY;
 const USER_ID = process.env.USER_ID;
 const USER_PWD_MD5 = process.env.USER_PWD_MD5;
-const { kv } = require('@vercel/kv');
+
+const CACHE_KEY = 'access_token';
 
 function getUTCTimestamp() {
   const d = new Date();
@@ -37,11 +40,21 @@ async function fetchNewToken() {
 }
 
 module.exports = async function getToken() {
-  const cacheKey = 'access_token';
-  let token = await kv.get(cacheKey);
-  if (token) return token;
+  try {
+    // KV থেকে টোকেন পাওয়ার চেষ্টা
+    let token = await kv.get(CACHE_KEY);
+    if (token) return token;
 
-  token = await fetchNewToken();
-  await kv.set(cacheKey, token, { ex: 3600 }); // 1 hour cache
-  return token;
+    // না পেলে নতুন টোকেন আনুন
+    token = await fetchNewToken();
+
+    // টোকেন KV-তে ১ ঘণ্টার জন্য জমা রাখুন (3600 সেকেন্ড)
+    await kv.set(CACHE_KEY, token, { ex: 3600 });
+
+    return token;
+  } catch (error) {
+    // যদি KV ডাউন থাকে বা কানেক্ট করতে না পারে, তবুও টোকেন জেনারেট করে দিন
+    console.error('KV error, fallback to no cache:', error);
+    return fetchNewToken();
+  }
 };
