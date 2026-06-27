@@ -6,7 +6,6 @@
   <title>TrackSolid Pro - Vehicle Media Viewer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* কাস্টম অ্যানিমেশন ও স্ক্রল */
     .media-grid { display: grid; gap: 1rem; }
     .media-grid.cols-1 { grid-template-columns: 1fr; }
     .media-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
@@ -54,7 +53,7 @@
 
   <script>
     // ========== গ্লোবাল স্টেট ==========
-    const mediaBaseUrl = 'https://cm-img.tracksolidpro.com/resource/'; // TODO: জিমি থেকে সঠিক বেস URL জেনে পরিবর্তন করুন
+    const mediaBaseUrl = 'https://cm-img.tracksolidpro.com/resource/'; // 7.20 এর জন্য (যদি কখনো দরকার পড়ে)
     const MAX_DEVICES = 9;
     let activeDevices = new Map(); // key: imei, value: { imei, deviceName, panel }
     let allDevices = [];           // ডিভাইস তালিকা
@@ -101,7 +100,6 @@
       }
       localStorage.setItem('fav_devices', JSON.stringify(favorites));
       renderFavorites();
-      // প্যানেলের স্টার আইকন আপডেট
       const panel = activeDevices.get(imei)?.panel;
       if (panel) {
         const starBtn = panel.querySelector('.star-btn');
@@ -121,7 +119,6 @@
 
     function showFavorites() {
       if (favorites.length === 0) return alert('No favorites yet.');
-      // প্রথম ফেভারিট গাড়িটি অ্যাড করি, বাকিগুলো চাইলে অ্যাড বাটনে ক্লিক করবে
       addDevice(favorites[0]);
     }
 
@@ -134,10 +131,8 @@
       if (activeDevices.has(imei)) return alert('Device already active');
       if (activeDevices.size >= MAX_DEVICES) return alert(`Maximum ${MAX_DEVICES} devices allowed.`);
 
-      // ডিভাইস ইনফো খুঁজি
       const deviceInfo = allDevices.find(d => d.imei === imei) || { imei, deviceName: imei };
 
-      // প্যানেল তৈরি
       const panel = document.createElement('div');
       panel.className = 'bg-gray-800 rounded-xl overflow-hidden shadow-lg relative';
       panel.dataset.imei = imei;
@@ -195,6 +190,8 @@
       try {
         const res = await fetch(`/api/media?imei=${imei}`);
         const data = await res.json();
+        console.log('Media API response:', data); // ডিবাগিং
+
         if (data.code !== 0 || !data.result || data.result.length === 0) {
           contentDiv.innerHTML = '<p class="text-yellow-400 text-center py-4">No media available</p>';
           return;
@@ -202,29 +199,41 @@
 
         contentDiv.innerHTML = '';
         data.result.forEach(item => {
-          const fullUrl = item.file_URL.startsWith('http') ? item.file_URL : (mediaBaseUrl + item.file_URL);
-          const thumbUrl = item.thumb_URL.startsWith('http') ? item.thumb_URL : (mediaBaseUrl + item.thumb_URL);
+          // 7.38 API পূর্ণ URL দেয়, তাই চেক করে নেই
+          let fullUrl = item.file_URL;
+          let thumbUrl = item.thumb_URL;
+          // যদি কোনো কারণে পূর্ণ URL না হয় (7.20 এর মতো), তাহলে বেস URL জুড়ি
+          if (fullUrl && !fullUrl.startsWith('http')) {
+            fullUrl = mediaBaseUrl + fullUrl;
+          }
+          if (thumbUrl && !thumbUrl.startsWith('http')) {
+            thumbUrl = mediaBaseUrl + thumbUrl;
+          }
 
           const mediaCard = document.createElement('div');
           mediaCard.className = 'mb-2 bg-gray-750 rounded overflow-hidden';
 
           let mediaElement;
-          if (item.media_type == 2) { // video
+          if (item.media_type == 2) { // ভিডিও
             mediaElement = `<video controls class="w-full h-40 object-cover"><source src="${fullUrl}" type="${item.mime_type}">Your browser does not support the video tag.</video>`;
-          } else {
+          } else { // ছবি
             mediaElement = `<img src="${thumbUrl}" class="w-full h-40 object-cover" loading="lazy" />`;
           }
+
+          const date = new Date(item.create_time * 1000).toLocaleString(); // Unix timestamp (সেকেন্ড)
+          const camera = item.camera === '0' ? 'Front' : item.camera === '1' ? 'Inward' : 'Unknown';
 
           mediaCard.innerHTML = `
             ${mediaElement}
             <div class="p-2 text-xs text-gray-400">
-              ${new Date(item.create_time).toLocaleString()} | Camera: ${item.camera === '0' ? 'Front' : 'Inward'} | Size: ${(item.file_size/1024).toFixed(1)} KB
+              ${date} | Camera: ${camera} | Size: ${(item.file_size/1024).toFixed(1)} KB
             </div>
           `;
           contentDiv.appendChild(mediaCard);
         });
       } catch(e) {
         contentDiv.innerHTML = '<p class="text-red-400 text-center py-4">Failed to load media</p>';
+        console.error(e);
       }
     }
 
