@@ -3,63 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TrackSolid Pro - Vehicle Media Viewer</title>
+  <title>Live Vehicle Viewer</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .media-grid { display: grid; gap: 1rem; }
-    .media-grid.cols-1 { grid-template-columns: 1fr; }
-    .media-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-    .media-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-    .media-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-  </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4">
-  <div class="max-w-full mx-auto">
-    <!-- হেডার -->
-    <div class="flex flex-wrap justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold">🚗 TrackSolid Media Viewer</h1>
-      <div class="flex gap-2">
-        <button onclick="showFavorites()" class="px-4 py-2 bg-yellow-600 rounded hover:bg-yellow-700">⭐ Favorites</button>
+  <div class="max-w-2xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6 text-center">🚗 Live Vehicle Streaming</h1>
+
+    <!-- সার্চ ও ডিভাইস সিলেক্ট -->
+    <div class="bg-gray-800 p-6 rounded-xl mb-6">
+      <div class="flex flex-col gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Search Vehicle</label>
+          <input type="text" id="searchInput" placeholder="IMEI or name..." 
+                 class="w-full p-3 bg-gray-700 border border-gray-600 rounded"
+                 oninput="filterDevices()">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Select Vehicle</label>
+          <select id="deviceSelect" class="w-full p-3 bg-gray-700 border border-gray-600 rounded">
+            <option value="">-- Select --</option>
+          </select>
+        </div>
+        <button onclick="openLive()" class="w-full py-3 bg-green-600 rounded hover:bg-green-700 text-lg font-semibold">
+          🔴 Watch Live
+        </button>
       </div>
     </div>
 
-    <!-- কন্ট্রোল প্যানেল -->
-    <div class="bg-gray-800 p-4 rounded-xl mb-6">
-      <div class="flex flex-wrap gap-4 items-end">
-        <!-- সার্চ + ডিভাইস সিলেক্ট -->
-        <div class="flex-1 min-w-[250px]">
-          <label class="block text-sm text-gray-400 mb-1">Search & Add Vehicle</label>
-          <div class="flex gap-2">
-            <input type="text" id="searchInput" placeholder="IMEI or name..." 
-                   class="p-2 bg-gray-700 border border-gray-600 rounded flex-1"
-                   oninput="filterDevices()">
-            <select id="deviceSelect" class="p-2 bg-gray-700 border border-gray-600 rounded w-56">
-              <option value="">-- Select --</option>
-            </select>
-            <button onclick="addDevice()" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700">Add</button>
-          </div>
-          <div id="favoriteList" class="mt-2 flex gap-2 flex-wrap"></div>
-        </div>
-        <!-- অ্যাক্টিভ গাড়ির সংখ্যা -->
-        <div class="text-sm text-gray-400">
-          Active: <span id="activeCount">0</span> / 9
-        </div>
-      </div>
-    </div>
-
-    <!-- মিডিয়া গ্যালারি (ডায়নামিক) -->
-    <div id="mediaGrid" class="media-grid cols-3"></div>
+    <!-- স্ট্যাটাস মেসেজ -->
+    <div id="status" class="text-center text-gray-400"></div>
   </div>
 
   <script>
-    // ========== গ্লোবাল স্টেট ==========
-    const mediaBaseUrl = 'https://cm-img.tracksolidpro.com/resource/'; // 7.20 এর জন্য (যদি কখনো দরকার পড়ে)
-    const MAX_DEVICES = 9;
-    let activeDevices = new Map(); // key: imei, value: { imei, deviceName, panel }
-    let allDevices = [];           // ডিভাইস তালিকা
-    let favorites = JSON.parse(localStorage.getItem('fav_devices') || '[]');
+    let allDevices = [];
 
-    // ========== ডিভাইস লোড ==========
+    // ডিভাইস লোড
     async function loadAllDevices() {
       try {
         const res = await fetch('/api/devices');
@@ -67,7 +46,6 @@
         if (data.code === 0) {
           allDevices = data.result;
           populateSelect();
-          renderFavorites();
         }
       } catch(e) { console.error(e); }
     }
@@ -91,172 +69,33 @@
       populateSelect(search);
     }
 
-    // ========== ফেভারিট ==========
-    function toggleFavorite(imei) {
-      if (favorites.includes(imei)) {
-        favorites = favorites.filter(f => f !== imei);
-      } else {
-        favorites.push(imei);
-      }
-      localStorage.setItem('fav_devices', JSON.stringify(favorites));
-      renderFavorites();
-      const panel = activeDevices.get(imei)?.panel;
-      if (panel) {
-        const starBtn = panel.querySelector('.star-btn');
-        if (starBtn) starBtn.innerHTML = favorites.includes(imei) ? '⭐' : '☆';
-      }
-    }
-
-    function renderFavorites() {
-      const container = document.getElementById('favoriteList');
-      container.innerHTML = favorites.map(imei => {
-        const dev = allDevices.find(d => d.imei === imei);
-        const name = dev ? (dev.deviceName || imei) : imei;
-        return `<span class="bg-yellow-800 text-yellow-200 px-2 py-1 rounded cursor-pointer text-sm"
-                    onclick="addDevice('${imei}')">⭐ ${name}</span>`;
-      }).join('');
-    }
-
-    function showFavorites() {
-      if (favorites.length === 0) return alert('No favorites yet.');
-      addDevice(favorites[0]);
-    }
-
-    // ========== ডিভাইস অ্যাড ==========
-    async function addDevice(imei) {
-      if (!imei) {
-        imei = document.getElementById('deviceSelect').value;
-      }
-      if (!imei) return alert('Please select a device');
-      if (activeDevices.has(imei)) return alert('Device already active');
-      if (activeDevices.size >= MAX_DEVICES) return alert(`Maximum ${MAX_DEVICES} devices allowed.`);
-
-      const deviceInfo = allDevices.find(d => d.imei === imei) || { imei, deviceName: imei };
-
-      const panel = document.createElement('div');
-      panel.className = 'bg-gray-800 rounded-xl overflow-hidden shadow-lg relative';
-      panel.dataset.imei = imei;
-      panel.innerHTML = `
-        <div class="flex justify-between items-center bg-gray-700 px-3 py-2">
-          <span class="font-semibold text-sm truncate">${deviceInfo.deviceName || imei}</span>
-          <div class="flex gap-1">
-            <button class="star-btn text-yellow-400 hover:scale-110" onclick="toggleFavorite('${imei}')">${favorites.includes(imei) ? '⭐' : '☆'}</button>
-            <button class="text-red-400 hover:text-red-300" onclick="removeDevice('${imei}')">✕</button>
-          </div>
-        </div>
-        <div class="p-2 media-content" id="content-${imei}">
-          <p class="text-gray-400 text-center py-4">Loading media...</p>
-        </div>
-        <div class="px-3 pb-2 flex gap-2">
-          <button class="flex-1 py-1 bg-green-600 rounded text-sm hover:bg-green-700" onclick="openLive('${imei}')">🔴 Live</button>
-          <button class="flex-1 py-1 bg-blue-600 rounded text-sm hover:bg-blue-700" onclick="reloadMedia('${imei}')">🔄 Reload</button>
-        </div>
-      `;
-
-      document.getElementById('mediaGrid').appendChild(panel);
-      activeDevices.set(imei, { imei, deviceName: deviceInfo.deviceName, panel });
-
-      updateGridColumns();
-      updateActiveCount();
-      loadDeviceMedia(imei);
-    }
-
-    function removeDevice(imei) {
-      const panel = activeDevices.get(imei)?.panel;
-      if (panel) panel.remove();
-      activeDevices.delete(imei);
-      updateGridColumns();
-      updateActiveCount();
-    }
-
-    function updateActiveCount() {
-      document.getElementById('activeCount').textContent = activeDevices.size;
-    }
-
-    function updateGridColumns() {
-      const grid = document.getElementById('mediaGrid');
-      const count = activeDevices.size;
-      grid.className = 'media-grid ' + (
-        count <= 1 ? 'cols-1' : count <= 2 ? 'cols-2' : count <= 4 ? 'cols-3' : 'cols-4'
-      );
-    }
-
-    // ========== মিডিয়া লোড ==========
-    async function loadDeviceMedia(imei) {
-      const contentDiv = document.getElementById(`content-${imei}`);
-      if (!contentDiv) return;
-      contentDiv.innerHTML = '<p class="text-gray-400 text-center py-4">Loading...</p>';
-
-      try {
-        const res = await fetch(`/api/media?imei=${imei}`);
-        const data = await res.json();
-        console.log('Media API response:', data); // ডিবাগিং
-
-        if (data.code !== 0 || !data.result || data.result.length === 0) {
-          contentDiv.innerHTML = '<p class="text-yellow-400 text-center py-4">No media available</p>';
-          return;
-        }
-
-        contentDiv.innerHTML = '';
-        data.result.forEach(item => {
-          // 7.38 API পূর্ণ URL দেয়, তাই চেক করে নেই
-          let fullUrl = item.file_URL;
-          let thumbUrl = item.thumb_URL;
-          // যদি কোনো কারণে পূর্ণ URL না হয় (7.20 এর মতো), তাহলে বেস URL জুড়ি
-          if (fullUrl && !fullUrl.startsWith('http')) {
-            fullUrl = mediaBaseUrl + fullUrl;
-          }
-          if (thumbUrl && !thumbUrl.startsWith('http')) {
-            thumbUrl = mediaBaseUrl + thumbUrl;
-          }
-
-          const mediaCard = document.createElement('div');
-          mediaCard.className = 'mb-2 bg-gray-750 rounded overflow-hidden';
-
-          let mediaElement;
-          if (item.media_type == 2) { // ভিডিও
-            mediaElement = `<video controls class="w-full h-40 object-cover"><source src="${fullUrl}" type="${item.mime_type}">Your browser does not support the video tag.</video>`;
-          } else { // ছবি
-            mediaElement = `<img src="${thumbUrl}" class="w-full h-40 object-cover" loading="lazy" />`;
-          }
-
-          const date = new Date(item.create_time * 1000).toLocaleString(); // Unix timestamp (সেকেন্ড)
-          const camera = item.camera === '0' ? 'Front' : item.camera === '1' ? 'Inward' : 'Unknown';
-
-          mediaCard.innerHTML = `
-            ${mediaElement}
-            <div class="p-2 text-xs text-gray-400">
-              ${date} | Camera: ${camera} | Size: ${(item.file_size/1024).toFixed(1)} KB
-            </div>
-          `;
-          contentDiv.appendChild(mediaCard);
-        });
-      } catch(e) {
-        contentDiv.innerHTML = '<p class="text-red-400 text-center py-4">Failed to load media</p>';
-        console.error(e);
-      }
-    }
-
-    function reloadMedia(imei) {
-      loadDeviceMedia(imei);
-    }
-
-    async function openLive(imei) {
+    // লাইভ স্ট্রিম ওপেন
+    async function openLive() {
+      const imei = document.getElementById('deviceSelect').value;
+      if (!imei) return alert('Please select a vehicle');
+      
+      const status = document.getElementById('status');
+      status.textContent = 'Fetching live stream URL...';
+      
       try {
         const res = await fetch(`/api/live?imei=${imei}`);
         const data = await res.json();
-        if (data.code !== 0) return alert('Live error: ' + (data.message || data.error));
+        if (data.code !== 0) {
+          status.textContent = 'Error: ' + (data.message || 'Unknown error');
+          return;
+        }
         if (data.result && data.result.UrlCamera) {
+          // সরাসরি লাইভ ভিডিও পেজ নতুন ট্যাবে খুলুন
           window.open(data.result.UrlCamera, '_blank');
+          status.textContent = 'Live stream opened in new tab.';
         } else {
-          alert('Live streaming not available for this device.');
+          status.textContent = 'Live streaming not available for this device.';
         }
       } catch(e) {
-        alert('Network error');
+        status.textContent = 'Network error. Please try again.';
       }
     }
 
-    // পেজ লোড
     loadAllDevices();
   </script>
 </body>
