@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4">
-  <div class="max-w-2xl mx-auto">
+  <div class="max-w-6xl mx-auto">
     <h1 class="text-3xl font-bold mb-6 text-center">🚗 Live Vehicle Streaming</h1>
 
     <!-- সার্চ ও ডিভাইস সিলেক্ট -->
@@ -25,20 +25,27 @@
             <option value="">-- Select --</option>
           </select>
         </div>
-        <button onclick="openLive()" class="w-full py-3 bg-green-600 rounded hover:bg-green-700 text-lg font-semibold">
+        <button onclick="startLive()" class="w-full py-3 bg-green-600 rounded hover:bg-green-700 text-lg font-semibold">
           🔴 Watch Live
         </button>
       </div>
     </div>
 
-    <!-- স্ট্যাটাস মেসেজ -->
-    <div id="status" class="text-center text-gray-400"></div>
+    <!-- লাইভ ভিডিও প্লেয়ার -->
+    <div id="playerContainer" class="hidden mt-6">
+      <div class="bg-black rounded-xl overflow-hidden" style="aspect-ratio: 16/9;">
+        <iframe id="liveIframe" class="w-full h-full" allowfullscreen></iframe>
+      </div>
+      <p class="text-center text-sm text-gray-400 mt-2">Ensure you are logged into TracksolidPro in this browser.</p>
+    </div>
+
+    <!-- স্ট্যাটাস -->
+    <div id="status" class="text-center text-gray-400 mt-4"></div>
   </div>
 
   <script>
     let allDevices = [];
 
-    // ডিভাইস লোড
     async function loadAllDevices() {
       try {
         const res = await fetch('/api/devices');
@@ -69,14 +76,17 @@
       populateSelect(search);
     }
 
-    // লাইভ স্ট্রিম ওপেন
-    async function openLive() {
+    async function startLive() {
       const imei = document.getElementById('deviceSelect').value;
       if (!imei) return alert('Please select a vehicle');
-      
+
       const status = document.getElementById('status');
+      const container = document.getElementById('playerContainer');
+      const iframe = document.getElementById('liveIframe');
+
       status.textContent = 'Fetching live stream URL...';
-      
+      container.classList.add('hidden');
+
       try {
         const res = await fetch(`/api/live?imei=${imei}`);
         const data = await res.json();
@@ -85,9 +95,10 @@
           return;
         }
         if (data.result && data.result.UrlCamera) {
-          // সরাসরি লাইভ ভিডিও পেজ নতুন ট্যাবে খুলুন
-          window.open(data.result.UrlCamera, '_blank');
-          status.textContent = 'Live stream opened in new tab.';
+          // সরাসরি iframe-এ লাইভ ভিডিও পেজ দেখাই
+          iframe.src = data.result.UrlCamera;
+          container.classList.remove('hidden');
+          status.textContent = 'Live stream loaded. If blank, please log in to TracksolidPro first.';
         } else {
           status.textContent = 'Live streaming not available for this device.';
         }
