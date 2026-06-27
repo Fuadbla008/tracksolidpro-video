@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Vehicle Viewer</title>
+  <title>Live Vehicle Viewer (Direct Stream)</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flv.js@latest/dist/flv.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4">
-  <div class="max-w-6xl mx-auto">
+  <div class="max-w-4xl mx-auto">
     <h1 class="text-3xl font-bold mb-6 text-center">🚗 Live Vehicle Streaming</h1>
 
-    <!-- সার্চ ও ডিভাইস সিলেক্ট -->
     <div class="bg-gray-800 p-6 rounded-xl mb-6">
       <div class="flex flex-col gap-4">
         <div>
@@ -26,25 +26,25 @@
           </select>
         </div>
         <button onclick="startLive()" class="w-full py-3 bg-green-600 rounded hover:bg-green-700 text-lg font-semibold">
-          🔴 Watch Live
+          ▶️ Watch Live
         </button>
       </div>
     </div>
 
-    <!-- লাইভ ভিডিও প্লেয়ার -->
-    <div id="playerContainer" class="hidden mt-6">
-      <div class="bg-black rounded-xl overflow-hidden" style="aspect-ratio: 16/9;">
-        <iframe id="liveIframe" class="w-full h-full" allowfullscreen></iframe>
+    <!-- ভিডিও প্লেয়ার -->
+    <div id="playerContainer" class="hidden">
+      <div class="bg-black rounded-xl overflow-hidden">
+        <video id="videoElement" class="w-full" controls autoplay playsinline muted></video>
       </div>
-      <p class="text-center text-sm text-gray-400 mt-2">Ensure you are logged into TracksolidPro in this browser.</p>
+      <p class="text-center text-sm text-gray-400 mt-2">Live stream – device must be online.</p>
     </div>
 
-    <!-- স্ট্যাটাস -->
     <div id="status" class="text-center text-gray-400 mt-4"></div>
   </div>
 
   <script>
     let allDevices = [];
+    let flvPlayer = null;
 
     async function loadAllDevices() {
       try {
@@ -80,30 +80,56 @@
       const imei = document.getElementById('deviceSelect').value;
       if (!imei) return alert('Please select a vehicle');
 
+      // Destroy previous player
+      if (flvPlayer) {
+        flvPlayer.destroy();
+        flvPlayer = null;
+      }
+
       const status = document.getElementById('status');
       const container = document.getElementById('playerContainer');
-      const iframe = document.getElementById('liveIframe');
+      const video = document.getElementById('videoElement');
 
-      status.textContent = 'Fetching live stream URL...';
+      status.textContent = 'Fetching stream info...';
       container.classList.add('hidden');
 
       try {
-        const res = await fetch(`/api/live?imei=${imei}`);
+        const res = await fetch(`/api/stream-url?imei=${imei}`);
         const data = await res.json();
-        if (data.code !== 0) {
-          status.textContent = 'Error: ' + (data.message || 'Unknown error');
+        if (data.error) {
+          status.textContent = 'Error: ' + data.error;
           return;
         }
-        if (data.result && data.result.UrlCamera) {
-          // সরাসরি iframe-এ লাইভ ভিডিও পেজ দেখাই
-          iframe.src = data.result.UrlCamera;
-          container.classList.remove('hidden');
-          status.textContent = 'Live stream loaded. If blank, please log in to TracksolidPro first.';
-        } else {
-          status.textContent = 'Live streaming not available for this device.';
+
+        // Expecting data.stream to contain the WebSocket URL
+        const streamInfo = data.stream;
+        // The internal API likely returns a url like "ws://.../0/imei.flv?token=..."
+        // but wrapped in a JSON object. We need to extract it.
+        let wsUrl = streamInfo.url || streamInfo.wsUrl || streamInfo.data;
+        if (!wsUrl) {
+          status.textContent = 'Could not extract WebSocket URL.';
+          console.log('streamInfo:', streamInfo);
+          return;
         }
-      } catch(e) {
-        status.textContent = 'Network error. Please try again.';
+
+        // Check if flv.js is supported
+        if (flvjs.isSupported()) {
+          flvPlayer = flvjs.createPlayer({
+            type: 'flv',
+            url: wsUrl,
+            isLive: true
+          });
+          flvPlayer.attachMediaElement(video);
+          flvPlayer.load();
+          flvPlayer.play();
+          container.classList.remove('hidden');
+          status.textContent = 'Streaming live...';
+        } else {
+          status.textContent = 'Your browser does not support FLV playback.';
+        }
+      } catch (err) {
+        status.textContent = 'Network error.';
+        console.error(err);
       }
     }
 
